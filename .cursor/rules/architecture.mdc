@@ -1,0 +1,368 @@
+# Supertraders Journal - 개발 원칙 및 가이드라인
+
+## 🏗️ 아키텍처 원칙
+
+### 1. 레이어 분리 (Layered Architecture)
+
+#### Backend
+```
+Presentation Layer (API) → Business Logic Layer (Services) → Data Access Layer (Models/Repositories)
+```
+
+#### Frontend
+```
+Presentation Layer (Screens/Widgets) → Domain Layer (Controllers/Providers) → Data Layer (Repositories/Models)
+```
+
+**원칙:**
+- 각 레이어는 자신의 상위 레이어만 알고 있어야 함
+- 하위 레이어는 상위 레이어를 알지 못해야 함
+- 레이어 간 직접 참조 금지 (의존성 역전 원칙)
+
+### 2. 단일 책임 원칙 (Single Responsibility Principle)
+
+**각 클래스/함수는 하나의 책임만 가져야 함**
+
+✅ 좋은 예:
+```python
+# Backend
+class PriceService:
+    def calculate_average(self, offer_id: UUID) -> float:
+        # 가격 평균 계산만 담당
+        pass
+
+class AlertService:
+    def check_price_drop(self, tracking: Tracking) -> Optional[Alert]:
+        # 알림 체크만 담당
+        pass
+```
+
+```dart
+// Frontend
+class HomeController extends StateNotifier<HomeState> {
+  // 홈 화면 상태 관리만 담당
+  Future<void> loadRecommendations() async { ... }
+}
+
+class PriceFormatter {
+  // 가격 포맷팅만 담당
+  static String format(int price) { ... }
+}
+```
+
+❌ 나쁜 예:
+```python
+# 여러 책임을 가진 클래스
+class ProductService:
+    def get_product(self): ...
+    def calculate_price(self): ...
+    def send_notification(self): ...
+    def save_to_cache(self): ...
+```
+
+### 3. 화면/라우터에는 도메인 로직 금지
+
+**화면(Screen)과 라우터는 오직 UI 렌더링과 네비게이션만 담당**
+
+✅ 좋은 예:
+```dart
+// 화면은 UI만 담당
+class HomeScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(homeControllerProvider);
+    return ListView(
+      children: state.items.map((item) => ProductCard(item: item)).toList(),
+    );
+  }
+}
+
+// 비즈니스 로직은 컨트롤러에
+class HomeController extends StateNotifier<HomeState> {
+  Future<void> loadRecommendations() async {
+    // 실제 로직은 여기
+  }
+}
+```
+
+❌ 나쁜 예:
+```dart
+// 화면에 비즈니스 로직이 있음
+class HomeScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context) {
+    // ❌ 화면에서 직접 API 호출
+    final response = await apiClient.get('/products/recommendations');
+    
+    // ❌ 화면에서 데이터 변환
+    final items = response.data.map((json) {
+      return ProductDto.fromJson(json);
+    }).toList();
+    
+    // ❌ 화면에서 가격 계산
+    final avgPrice = items.fold(0, (sum, item) => sum + item.price) / items.length;
+  }
+}
+```
+
+### 4. 의존성 역전 원칙 (Dependency Inversion)
+
+**고수준 모듈은 저수준 모듈에 의존하지 않아야 함**
+
+✅ 좋은 예:
+```python
+# Service는 Repository 인터페이스에 의존
+class AlertService:
+    def __init__(self, tracking_repo: TrackingRepository):
+        self.tracking_repo = tracking_repo
+```
+
+```dart
+// Controller는 Repository에 의존 (구현체가 아닌 추상화)
+class HomeController extends StateNotifier<HomeState> {
+  final ProductRepository _repository;
+  HomeController(this._repository);
+}
+```
+
+### 5. 함수는 순수 함수로 작성
+
+**부수 효과(side effect)를 최소화하고, 입력에 대해 예측 가능한 출력을 반환**
+
+✅ 좋은 예:
+```dart
+// 순수 함수
+class PriceFormatter {
+  static String format(int price) {
+    return price.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]},',
+    );
+  }
+}
+```
+
+❌ 나쁜 예:
+```dart
+// 부수 효과가 있는 함수
+String formatPrice(int price) {
+  // ❌ 전역 상태 변경
+  lastFormattedPrice = price;
+  // ❌ 로깅 (부수 효과)
+  print('Formatting price: $price');
+  return price.toString();
+}
+```
+
+### 6. 데이터 흐름은 단방향으로
+
+**Frontend 상태 관리: 단방향 데이터 흐름**
+
+```
+User Action → Controller → Repository → API → Response → Controller → State → UI Update
+```
+
+✅ 좋은 예:
+```dart
+// 단방향 데이터 흐름
+class HomeController extends StateNotifier<HomeState> {
+  Future<void> loadRecommendations() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final data = await _repository.getRecommendations();
+      state = state.copyWith(isLoading: false, recommendations: data);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+}
+```
+
+### 7. 에러 처리 원칙
+
+**에러는 적절한 레이어에서 처리하고, 사용자에게 의미 있는 메시지 제공**
+
+✅ 좋은 예:
+```python
+# Backend: Service 레이어에서 에러 처리
+class AlertService:
+    async def create_alert(self, data: AlertCreate) -> Alert:
+        try:
+            tracking = await self.tracking_repo.get(data.tracking_id)
+            if not tracking:
+                raise ValueError("Tracking not found")
+            return await self.alert_repo.create(data)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+```
+
+```dart
+// Frontend: Repository에서 에러를 Failure로 변환
+class ProductRepository {
+  Future<RecommendationResponseDto> getRecommendations(String petId) async {
+    try {
+      final response = await _apiClient.get(...);
+      return RecommendationResponseDto.fromJson(response.data);
+    } on DioException catch (e) {
+      throw NetworkException('네트워크 오류가 발생했습니다.');
+    }
+  }
+}
+```
+
+### 8. 네이밍 컨벤션
+
+#### Backend (Python)
+- **클래스**: PascalCase (`ProductService`, `AlertController`)
+- **함수/변수**: snake_case (`get_product`, `user_id`)
+- **상수**: UPPER_SNAKE_CASE (`MAX_RETRY_COUNT`)
+- **Private**: 앞에 언더스코어 (`_internal_method`)
+
+#### Frontend (Dart)
+- **클래스**: PascalCase (`HomeController`, `ProductDto`)
+- **함수/변수**: camelCase (`loadRecommendations`, `userId`)
+- **상수**: camelCase 또는 PascalCase (`PetConstants.breeds`)
+- **Private**: 앞에 언더스코어 (`_privateMethod`)
+
+### 9. 파일 구조 원칙
+
+#### Backend
+```
+app/
+├── api/v1/          # API 엔드포인트 (라우터만)
+├── services/        # 비즈니스 로직
+├── models/          # DB 모델 (ORM)
+├── schemas/         # Pydantic 스키마 (Request/Response)
+└── core/            # 공통 설정
+```
+
+**원칙:**
+- `api/`에는 라우터 정의만 (비즈니스 로직 없음)
+- `services/`에 모든 비즈니스 로직
+- `models/`는 DB 스키마만 (비즈니스 로직 없음)
+
+#### Frontend
+```
+features/
+└── feature_name/
+    └── presentation/
+        ├── screens/      # 화면 (UI만)
+        ├── widgets/      # 위젯 (UI만)
+        └── controllers/  # 상태 관리 (비즈니스 로직 조율)
+```
+
+**원칙:**
+- `screens/`에는 UI 렌더링만
+- `widgets/`에는 재사용 가능한 UI 컴포넌트만
+- `controllers/`에는 상태 관리와 비즈니스 로직 조율
+
+### 10. 테스트 가능성
+
+**의존성 주입을 통해 테스트 가능한 코드 작성**
+
+✅ 좋은 예:
+```python
+# 의존성 주입으로 테스트 가능
+class AlertService:
+    def __init__(self, tracking_repo: TrackingRepository, alert_repo: AlertRepository):
+        self.tracking_repo = tracking_repo
+        self.alert_repo = alert_repo
+```
+
+```dart
+// Mock 가능한 구조
+class HomeController extends StateNotifier<HomeState> {
+  final ProductRepository _repository;
+  HomeController(this._repository); // 의존성 주입
+}
+```
+
+### 11. 코드 중복 제거
+
+**DRY (Don't Repeat Yourself) 원칙 준수**
+
+- 공통 로직은 유틸리티 함수로 추출
+- 반복되는 패턴은 공통 컴포넌트/서비스로 분리
+- 상수는 별도 파일로 관리
+
+### 12. 타입 안정성
+
+**명시적 타입 사용으로 런타임 에러 방지**
+
+✅ 좋은 예:
+```python
+def create_pet(data: PetCreate, db: AsyncSession) -> PetRead:
+    # 명시적 타입 힌트
+    pass
+```
+
+```dart
+Future<RecommendationResponseDto> getRecommendations(String petId) async {
+  // 명시적 반환 타입
+}
+```
+
+### 13. 주석 및 문서화
+
+**복잡한 로직에는 주석 추가, Public API는 문서화**
+
+```python
+def calculate_14day_average(
+    db: AsyncSession,
+    offer_id: UUID
+) -> Optional[float]:
+    """
+    최근 14일 이동 평균 계산
+    
+    Args:
+        db: 데이터베이스 세션
+        offer_id: 상품 제안 ID
+        
+    Returns:
+        14일 평균 가격, 데이터가 없으면 None
+    """
+    pass
+```
+
+### 14. Git 커밋 메시지 컨벤션
+
+```
+feat: 새로운 기능 추가
+fix: 버그 수정
+refactor: 코드 리팩토링
+docs: 문서 수정
+style: 코드 포맷팅
+test: 테스트 추가/수정
+chore: 빌드 설정 등
+```
+
+## 🚫 금지 사항
+
+1. ❌ 화면에서 직접 API 호출 (`Dio`, `ApiClient` 직접 사용)
+2. ❌ 라우터에서 비즈니스 로직 처리
+3. ❌ 컨트롤러에서 직접 DB 접근
+4. ❌ 전역 변수 사용 (상태는 Provider/StateNotifier로 관리)
+5. ❌ 하드코딩된 값 (상수 파일로 분리)
+6. ❌ 순환 참조 (import cycle)
+7. ❌ 너무 깊은 중첩 (3단계 이상 지양)
+8. ❌ 매직 넘버/문자열 (상수로 정의)
+
+## ✅ 체크리스트
+
+코드 작성 시 확인:
+
+- [ ] 화면에 비즈니스 로직이 없나?
+- [ ] 각 함수가 단일 책임을 가지나?
+- [ ] 의존성이 적절한 방향으로 흐르나?
+- [ ] 에러 처리가 적절한 레이어에서 이루어지나?
+- [ ] 타입이 명시적으로 정의되어 있나?
+- [ ] 테스트 가능한 구조인가?
+- [ ] 코드 중복이 없나?
+- [ ] 네이밍이 명확한가?
+
+## 📚 참고 자료
+
+- Clean Architecture (Robert C. Martin)
+- SOLID 원칙
+- Flutter Best Practices
+- FastAPI Best Practices
