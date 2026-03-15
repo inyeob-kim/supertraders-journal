@@ -8,6 +8,7 @@ function mapProfileFromApi(p: UserProfileResponse): TradingProfile {
   return {
     tradingPrinciples: p.trading_principles ?? '',
     commonMistakes: p.common_mistakes ?? [],
+    tradingProcess: p.trading_process ?? [],
     tradingGoals: {
       dailyMaxLoss: p.daily_max_loss_pct != null ? `${p.daily_max_loss_pct}%` : '',
       monthlyTarget: p.monthly_target_return_pct != null ? `${p.monthly_target_return_pct}%` : '',
@@ -40,6 +41,7 @@ export function useProfile(): {
         setProfile({
           tradingPrinciples: '',
           commonMistakes: [],
+          tradingProcess: [],
           tradingGoals: { dailyMaxLoss: '', monthlyTarget: '', riskPerTrade: '' },
           mindsetReminders: [],
           todayReminder: '',
@@ -62,6 +64,7 @@ export function useProfile(): {
     if (updates.tradingPrinciples !== undefined) body.trading_principles = updates.tradingPrinciples;
     if (updates.todayReminder !== undefined) body.rule_of_the_day = updates.todayReminder;
     if (updates.commonMistakes !== undefined) body.common_mistakes = updates.commonMistakes;
+    if (updates.tradingProcess !== undefined) body.trading_process = updates.tradingProcess;
     if (updates.mindsetReminders !== undefined)
       body.mindset_quotes = updates.mindsetReminders.join('\n') || null;
     if (updates.tradingGoals) {

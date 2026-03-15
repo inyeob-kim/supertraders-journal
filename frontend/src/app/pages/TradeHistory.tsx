@@ -4,7 +4,7 @@ import Layout from '../components/Layout';
 import { useTrades } from '../hooks/useTrades';
 import type { Trade, MistakeTag } from '../types/trade';
 import { formatCurrency, getMarketFlag, getMarketLabel } from '../utils/format';
-import { Search, Filter, Calendar } from 'lucide-react';
+import { Search, Filter, Calendar, Edit2 } from 'lucide-react';
 
 function getDateRange(filter: 'all' | 'week' | 'month'): { startDate?: string; endDate?: string } {
   if (filter === 'all') return {};
@@ -160,7 +160,7 @@ export default function TradeHistory() {
                   <div
                     key={trade.id}
                     onClick={() => navigate(`/trade/${trade.id}`)}
-                    className="px-6 md:px-7 py-5 hover:bg-neutral-50/80 cursor-pointer transition-colors"
+                    className="px-6 md:px-7 py-5 hover:bg-neutral-50/80 cursor-pointer transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -179,7 +179,9 @@ export default function TradeHistory() {
                         </div>
                         <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3">
                           <span className="font-medium">진입: {formatCurrency(trade.entryPrice, trade.market)}</span>
-                          <span className="font-medium">청산: {formatCurrency(trade.exitPrice, trade.market)}</span>
+                          <span className="font-medium">
+                            청산: {trade.tradeStatus === 'OPEN' ? '미청산' : formatCurrency(trade.exitPrice, trade.market)}
+                          </span>
                         </div>
                         {trade.memo && (
                           <p className="text-sm text-neutral-600 mb-3 line-clamp-2">{trade.memo}</p>
@@ -197,12 +199,32 @@ export default function TradeHistory() {
                           </div>
                         )}
                       </div>
-                      <div
-                        className={`text-right font-bold text-xl flex-shrink-0 ${
-                          trade.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}
-                      >
-                        {trade.profitLoss >= 0 ? '+' : ''}{formatCurrency(trade.profitLoss, trade.market)}
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/trade/${trade.id}?edit=1`);
+                          }}
+                          className="p-2 rounded-lg text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          title="수정"
+                          aria-label="수정"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </button>
+                        <div
+                          className={`text-right font-bold text-xl ${
+                            trade.tradeStatus === 'OPEN'
+                              ? 'text-amber-600'
+                              : trade.profitLoss >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                          }`}
+                        >
+                          {trade.tradeStatus === 'OPEN'
+                            ? '미청산'
+                            : `${trade.profitLoss >= 0 ? '+' : ''}${formatCurrency(trade.profitLoss, trade.market)}`}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -14,9 +15,15 @@ class MistakeTagRef(BaseModel):
 class TradeCreateRequest(BaseModel):
     symbol_id: UUID
     trade_date: date
+    trade_direction: Literal["LONG", "SHORT"]
+    market_type: Literal["US_STOCK", "KOREA_STOCK", "CRYPTO"]
     entry_price: Decimal
-    exit_price: Decimal
+    exit_price: Decimal | None = None
     quantity: Decimal | None = None
+    strategy_tags: list[str] | None = None
+    entry_reason: str | None = None
+    exit_reason: str | None = None
+    trade_reflection: str | None = None
     memo: str | None = None
     mistake_tag_ids: list[UUID] | None = None
     chart_image_url: str | None = None
@@ -27,9 +34,15 @@ class TradeCreateRequest(BaseModel):
 
 class TradeUpdateRequest(BaseModel):
     trade_date: date | None = None
+    trade_direction: Literal["LONG", "SHORT"] | None = None
+    market_type: Literal["US_STOCK", "KOREA_STOCK", "CRYPTO"] | None = None
     entry_price: Decimal | None = None
     exit_price: Decimal | None = None
     quantity: Decimal | None = None
+    strategy_tags: list[str] | None = None
+    entry_reason: str | None = None
+    exit_reason: str | None = None
+    trade_reflection: str | None = None
     memo: str | None = None
     mistake_tag_ids: list[UUID] | None = None
     chart_image_url: str | None = None
@@ -46,11 +59,18 @@ class TradeListItemResponse(BaseModel):
     symbol_name_snapshot: str | None
     market_snapshot: str | None = None
     trade_date: date
+    trade_direction: str = "LONG"
+    market_type: str = "US_STOCK"
+    trade_status: str = "CLOSED"
     entry_price: Decimal
-    exit_price: Decimal
+    exit_price: Decimal | None
     quantity: Decimal | None
     pnl_amount: Decimal | None
     pnl_pct: Decimal | None
+    entry_reason: str | None = None
+    exit_reason: str | None = None
+    trade_reflection: str | None = None
+    strategy_tags: list[str] | None = None
     memo: str | None
     mistake_tags: list[MistakeTagRef] = []
     chart_image_url: str | None
@@ -68,11 +88,18 @@ class TradeDetailResponse(BaseModel):
     market_snapshot: str | None
     exchange_snapshot: str | None
     trade_date: date
+    trade_direction: str = "LONG"
+    market_type: str = "US_STOCK"
+    trade_status: str = "CLOSED"
     entry_price: Decimal
-    exit_price: Decimal
+    exit_price: Decimal | None
     quantity: Decimal | None
     pnl_amount: Decimal | None
     pnl_pct: Decimal | None
+    entry_reason: str | None = None
+    exit_reason: str | None = None
+    trade_reflection: str | None = None
+    strategy_tags: list[str] | None = None
     memo: str | None
     mistake_tags: list[MistakeTagRef] = []
     chart_image_url: str | None
@@ -94,11 +121,18 @@ class TradeResponse(BaseModel):
     market_snapshot: str | None
     exchange_snapshot: str | None
     trade_date: date
+    trade_direction: str = "LONG"
+    market_type: str = "US_STOCK"
+    trade_status: str = "CLOSED"
     entry_price: Decimal
-    exit_price: Decimal
+    exit_price: Decimal | None
     quantity: Decimal | None
     pnl_amount: Decimal | None
     pnl_pct: Decimal | None
+    entry_reason: str | None = None
+    exit_reason: str | None = None
+    trade_reflection: str | None = None
+    strategy_tags: list[str] | None = None
     memo: str | None
     mistake_tags: list[MistakeTagRef] = []
     chart_image_url: str | None

@@ -4,7 +4,7 @@ import { useProfile } from '../hooks/useProfile';
 import { mistakeTagsApi } from '../api/endpoints';
 import type { TradingProfile } from '../types/profile';
 import type { MistakeTagItem } from '../api/types';
-import { Lightbulb, Target, AlertTriangle, BookOpen, Star, X, Plus, Edit2, Check } from 'lucide-react';
+import { Lightbulb, Target, AlertTriangle, BookOpen, Star, X, Plus, Edit2, Check, ListChecks } from 'lucide-react';
 
 export default function TradingProfilePage() {
   const { profile: fetchedProfile, isLoading, error, updateProfile, refetch } = useProfile();
@@ -12,6 +12,7 @@ export default function TradingProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [newMistake, setNewMistake] = useState('');
   const [newReminder, setNewReminder] = useState('');
+  const [newProcessItem, setNewProcessItem] = useState('');
   const [mistakeTagList, setMistakeTagList] = useState<MistakeTagItem[]>([]);
 
   useEffect(() => {
@@ -190,6 +191,94 @@ export default function TradingProfilePage() {
                     {profile.tradingPrinciples}
                   </pre>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Trading Process (checklist items for dashboard) */}
+          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+            <div className="p-6 border-b border-neutral-200">
+              <div className="flex items-center gap-2">
+                <ListChecks className="w-5 h-5 text-neutral-700" />
+                <h2 className="font-semibold text-neutral-900">나의 매매 프로세스</h2>
+              </div>
+              <p className="text-sm text-neutral-500 mt-1">대시보드에서 매일 체크할 항목을 등록하세요</p>
+            </div>
+            <div className="p-6">
+              {(profile.tradingProcess?.length ? profile.tradingProcess : []).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-3 py-2 group">
+                  <span className="text-neutral-400 text-sm w-6">{idx + 1}.</span>
+                  {isEditing ? (
+                    <>
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) => {
+                          const next = [...(profile.tradingProcess ?? [])];
+                          next[idx] = e.target.value;
+                          setProfile({ ...profile, tradingProcess: next });
+                        }}
+                        className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="예: 차트·뉴스 확인"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setProfile({
+                          ...profile,
+                          tradingProcess: (profile.tradingProcess ?? []).filter((_, i) => i !== idx),
+                        })}
+                        className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        aria-label="삭제"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-neutral-700">{item}</span>
+                  )}
+                </div>
+              ))}
+              {isEditing && (
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="text"
+                    value={newProcessItem}
+                    onChange={(e) => setNewProcessItem(e.target.value)}
+                    placeholder="새 프로세스 항목 추가"
+                    className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const v = newProcessItem.trim();
+                        if (v) {
+                          setProfile({
+                            ...profile,
+                            tradingProcess: [...(profile.tradingProcess ?? []), v],
+                          });
+                          setNewProcessItem('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = newProcessItem.trim();
+                      if (v) {
+                        setProfile({
+                          ...profile,
+                          tradingProcess: [...(profile.tradingProcess ?? []), v],
+                        });
+                        setNewProcessItem('');
+                      }
+                    }}
+                    className="flex items-center gap-1 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg hover:bg-neutral-200"
+                  >
+                    <Plus className="w-4 h-4" /> 추가
+                  </button>
+                </div>
+              )}
+              {(!profile.tradingProcess?.length && !isEditing) && (
+                <p className="text-neutral-500 text-sm">등록된 프로세스가 없습니다. 수정에서 추가하세요.</p>
               )}
             </div>
           </div>

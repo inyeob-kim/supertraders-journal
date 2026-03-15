@@ -14,7 +14,19 @@ router = APIRouter()
 @router.get("/me", response_model=UserMeResponse, status_code=status.HTTP_200_OK)
 async def get_current_user_info(current_user: CurrentUser) -> UserMeResponse:
     """Return the currently authenticated user (from Firebase ID token)."""
-    return UserMeResponse.model_validate(current_user)
+    # Build response explicitly to avoid SQLAlchemy async lazy-load (MissingGreenlet)
+    # when Pydantic reads attributes from the ORM object.
+    return UserMeResponse(
+        id=current_user.id,
+        firebase_uid=current_user.firebase_uid,
+        email=current_user.email,
+        display_name=current_user.display_name,
+        photo_url=current_user.photo_url,
+        provider=current_user.provider,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at,
+    )
 
 
 @router.get(

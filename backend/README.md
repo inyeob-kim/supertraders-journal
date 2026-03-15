@@ -43,8 +43,10 @@ copy .env.example .env
 From the `backend` directory:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
+
+`--reload-dir app`은 `app` 폴더만 감시하므로, `.venv`나 기타 패키지 파일이 바뀔 때 서버가 불필요하게 재시작되는 것을 막습니다.
 
 Server will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 

@@ -65,20 +65,28 @@ class DashboardService:
                 mid = tmt.mistake_tag_id
                 mistake_counts[mid] = mistake_counts.get(mid, 0) + 1
         all_tags = await self.mistake_tag_repository.get_all_active()
-        mistake_stats = []
+        mistake_stats_raw = []
         for tag in all_tags:
             count = mistake_counts.get(tag.id, 0)
             pct = (Decimal(count) / total_trades * 100) if total_trades else Decimal(0)
-            mistake_stats.append({
+            mistake_stats_raw.append({
                 "mistake_tag_id": tag.id,
                 "code": tag.code,
                 "label_ko": tag.label_ko,
                 "count": count,
                 "percentage": float(pct),
             })
+        # 주요 실수: 건수 기준 내림차순, 1건 이상만 포함
+        mistake_stats = sorted(
+            [s for s in mistake_stats_raw if s["count"] > 0],
+            key=lambda s: s["count"],
+            reverse=True,
+        )
 
         profile: UserProfile | None = await self.profile_repository.get_by_user_id(user_id)
         rule_of_the_day = (profile.rule_of_the_day if profile else None) or None
+        trading_principles = (profile.trading_principles if profile else None) or None
+        trading_process = getattr(profile, "trading_process", None) or None
 
         return {
             "range": range_param,
@@ -94,4 +102,6 @@ class DashboardService:
             "recent_trades": recent,
             "mistake_stats": mistake_stats,
             "rule_of_the_day": rule_of_the_day,
+            "trading_principles": trading_principles,
+            "trading_process": trading_process,
         }

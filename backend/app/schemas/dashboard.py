@@ -38,6 +38,8 @@ class DashboardSummaryResponse(BaseModel):
     recent_trades: list[TradeListItemResponse]
     mistake_stats: list[DashboardMistakeStatResponse]
     rule_of_the_day: str | None
+    trading_principles: str | None = None
+    trading_process: list[str] | None = None
 
 
 class DashboardSummaryResponseLegacy(BaseModel):

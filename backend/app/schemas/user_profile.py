@@ -13,6 +13,7 @@ class UserProfileUpsertRequest(BaseModel):
     risk_per_trade_pct: Decimal | None = None
     rule_of_the_day: str | None = None
     common_mistakes: list[str] | None = None
+    trading_process: list[str] | None = None
 
 
 class UserProfileResponse(BaseModel):
@@ -27,5 +28,6 @@ class UserProfileResponse(BaseModel):
     risk_per_trade_pct: Decimal | None
     rule_of_the_day: str | None
     common_mistakes: list[str] | None
+    trading_process: list[str] | None = None
     created_at: datetime
     updated_at: datetime

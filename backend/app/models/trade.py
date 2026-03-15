@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, desc
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -35,11 +35,18 @@ class Trade(Base, TimestampMixin):
     exchange_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     trade_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
+    trade_direction: Mapped[str] = mapped_column(String(10), nullable=False, default="LONG")
+    market_type: Mapped[str] = mapped_column(String(30), nullable=False, default="US_STOCK")
     entry_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    exit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    exit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     pnl_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     pnl_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
+    trade_status: Mapped[str] = mapped_column(String(20), nullable=False, default="CLOSED")
+    entry_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exit_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trade_reflection: Mapped[str | None] = mapped_column(Text, nullable=True)
+    strategy_tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     chart_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)

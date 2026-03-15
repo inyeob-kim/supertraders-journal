@@ -29,6 +29,7 @@ class UserProfile(Base, TimestampMixin):
     risk_per_trade_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     rule_of_the_day: Mapped[str | None] = mapped_column(String(255), nullable=True)
     common_mistakes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    trading_process: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
     user = relationship("User", back_populates="profile", lazy="joined")
 

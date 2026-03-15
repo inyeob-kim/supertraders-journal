@@ -20,6 +20,8 @@ export interface DashboardSummaryState {
   recentTrades: Trade[];
   mistakeStats: Array<{ label_ko: string; count: number; percentage: number }>;
   ruleOfTheDay: string | null;
+  tradingPrinciples: string | null;
+  tradingProcess: string[] | null;
 }
 
 export function useDashboardSummary(
@@ -64,6 +66,8 @@ export function useDashboardSummary(
           percentage: s.percentage,
         })),
         ruleOfTheDay: res.rule_of_the_day,
+        tradingPrinciples: res.trading_principles ?? null,
+        tradingProcess: res.trading_process ?? null,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard');

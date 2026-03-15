@@ -1,6 +1,7 @@
 export interface TradingProfile {
   tradingPrinciples: string;
   commonMistakes: string[];
+  tradingProcess: string[];
   tradingGoals: {
     dailyMaxLoss: string;
     monthlyTarget: string;

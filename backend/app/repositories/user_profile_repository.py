@@ -28,6 +28,7 @@ class UserProfileRepository:
         risk_per_trade_pct: Decimal | None = None,
         rule_of_the_day: str | None = None,
         common_mistakes: list[str] | None = None,
+        trading_process: list[str] | None = None,
     ) -> UserProfile:
         profile = await self.get_by_user_id(user_id)
         if profile is None:
@@ -48,6 +49,8 @@ class UserProfileRepository:
             profile.rule_of_the_day = rule_of_the_day
         if common_mistakes is not None:
             profile.common_mistakes = common_mistakes
+        if trading_process is not None:
+            profile.trading_process = trading_process
         await self.session.flush()
         await self.session.refresh(profile)
         return profile

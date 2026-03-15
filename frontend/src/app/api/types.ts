@@ -24,6 +24,7 @@ export interface UserProfileResponse {
   risk_per_trade_pct: number | null;
   rule_of_the_day: string | null;
   common_mistakes: string[] | null;
+  trading_process: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +37,7 @@ export interface UserProfileUpsertRequest {
   risk_per_trade_pct?: number | null;
   rule_of_the_day?: string | null;
   common_mistakes?: string[] | null;
+  trading_process?: string[] | null;
 }
 
 export interface MistakeTagItem {
@@ -76,11 +78,18 @@ export interface TradeListItemResponse {
   symbol_name_snapshot: string | null;
   market_snapshot: string | null;
   trade_date: string;
+  trade_direction?: string;
+  market_type?: string;
+  trade_status?: string;
   entry_price: number;
-  exit_price: number;
+  exit_price: number | null;
   quantity: number | null;
   pnl_amount: number | null;
   pnl_pct: number | null;
+  entry_reason?: string | null;
+  exit_reason?: string | null;
+  trade_reflection?: string | null;
+  strategy_tags?: string[] | null;
   memo: string | null;
   mistake_tags: MistakeTagRef[];
   chart_image_url: string | null;
@@ -98,12 +107,21 @@ export interface TradeDetailResponse extends TradeListItemResponse {
   updated_at: string;
 }
 
+export type TradeDirection = 'LONG' | 'SHORT';
+export type MarketType = 'US_STOCK' | 'KOREA_STOCK' | 'CRYPTO';
+
 export interface TradeCreateRequest {
   symbol_id: string;
   trade_date: string;
+  trade_direction: TradeDirection;
+  market_type: MarketType;
   entry_price: number;
-  exit_price: number;
+  exit_price?: number | null;
   quantity?: number | null;
+  strategy_tags?: string[] | null;
+  entry_reason?: string | null;
+  exit_reason?: string | null;
+  trade_reflection?: string | null;
   memo?: string | null;
   mistake_tag_ids?: string[] | null;
   chart_image_url?: string | null;
@@ -114,9 +132,15 @@ export interface TradeCreateRequest {
 
 export interface TradeUpdateRequest {
   trade_date?: string;
+  trade_direction?: string;
+  market_type?: string;
   entry_price?: number;
-  exit_price?: number;
+  exit_price?: number | null;
   quantity?: number | null;
+  strategy_tags?: string[] | null;
+  entry_reason?: string | null;
+  exit_reason?: string | null;
+  trade_reflection?: string | null;
   memo?: string | null;
   mistake_tag_ids?: string[] | null;
   chart_image_url?: string | null;
@@ -153,4 +177,6 @@ export interface DashboardSummaryResponse {
     percentage: number;
   }>;
   rule_of_the_day: string | null;
+  trading_principles?: string | null;
+  trading_process?: string[] | null;
 }

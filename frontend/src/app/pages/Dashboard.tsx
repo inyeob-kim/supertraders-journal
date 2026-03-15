@@ -3,11 +3,34 @@ import { useNavigate } from 'react-router';
 import Layout from '../components/Layout';
 import { useDashboardSummary, type DashboardRange } from '../hooks/useDashboardSummary';
 import { formatCurrency, getMarketFlag, getMarketLabel } from '../utils/format';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Star } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Star, ListChecks, RotateCcw } from 'lucide-react';
+
+const PROCESS_CHECK_KEY = 'dashboard_process_checked';
+
+function getTodayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function loadProcessChecked(): Set<number> {
+  try {
+    const raw = localStorage.getItem(`${PROCESS_CHECK_KEY}_${getTodayKey()}`);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as number[];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveProcessChecked(checked: Set<number>) {
+  localStorage.setItem(`${PROCESS_CHECK_KEY}_${getTodayKey()}`, JSON.stringify([...checked]));
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<DashboardRange>('week');
+  const [processChecked, setProcessChecked] = useState<Set<number>>(loadProcessChecked);
   const { data, isLoading, error, refetch } = useDashboardSummary(timeRange);
 
   if (isLoading && !data) {
@@ -56,7 +79,18 @@ export default function Dashboard() {
   };
   const recentTrades = data?.recentTrades ?? [];
   const topMistakes = (data?.mistakeStats ?? []).slice(0, 3);
-  const todayReminder = data?.ruleOfTheDay ?? '';
+  const ruleOfTheDay = data?.ruleOfTheDay ?? '';
+  const tradingPrinciples = data?.tradingPrinciples ?? '';
+  const tradingProcess = data?.tradingProcess ?? null;
+  const principleDisplay = ruleOfTheDay.trim() || tradingPrinciples.trim();
+
+  const toggleProcessCheck = (index: number) => {
+    const next = new Set(processChecked);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    setProcessChecked(next);
+    saveProcessChecked(next);
+  };
 
   return (
     <Layout>
@@ -75,7 +109,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {todayReminder && (
+        {principleDisplay && (
           <div className="mb-8">
             <div
               onClick={() => navigate('/profile')}
@@ -85,11 +119,61 @@ export default function Dashboard() {
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
                   <Star className="w-6 h-6" />
                 </div>
-                <div className="flex-1">
-                  <h2 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-90">오늘의 원칙</h2>
-                  <p className="text-xl font-medium text-white leading-relaxed">{todayReminder}</p>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-90">
+                    {ruleOfTheDay.trim() ? '오늘의 원칙' : '나의 매매 원칙'}
+                  </h2>
+                  <p className="text-xl font-medium text-white leading-relaxed whitespace-pre-wrap">
+                    {ruleOfTheDay.trim() || tradingPrinciples.trim()}
+                  </p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {tradingProcess && tradingProcess.length > 0 && (
+          <div className="mb-8">
+            <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-5 h-5 text-neutral-600" />
+                  <h2 className="font-semibold text-neutral-900">나의 매매 프로세스</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new Set<number>();
+                    setProcessChecked(next);
+                    saveProcessChecked(next);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                  title="체크 전체 해제"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>리셋</span>
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {tradingProcess.map((label, idx) => (
+                  <li key={idx} className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleProcessCheck(idx); }}
+                      className="flex-shrink-0 w-5 h-5 rounded border-2 border-neutral-300 flex items-center justify-center transition-colors hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      aria-checked={processChecked.has(idx)}
+                      role="checkbox"
+                    >
+                      {processChecked.has(idx) && (
+                        <span className="text-blue-600 font-bold text-sm leading-none">✓</span>
+                      )}
+                    </button>
+                    <span className={processChecked.has(idx) ? 'text-neutral-500 line-through' : 'text-neutral-800'}>
+                      {label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         )}

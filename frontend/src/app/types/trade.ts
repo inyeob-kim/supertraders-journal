@@ -6,14 +6,21 @@ export interface Trade {
   ticker: string;
   /** Market code for currency display (e.g. KR → ₩, US → $) */
   market?: string | null;
+  tradeDirection?: string;
+  marketType?: string;
+  /** OPEN = 미청산, CLOSED = 청산됨 */
+  tradeStatus?: string;
   entryPrice: number;
   exitPrice: number;
   quantity?: number;
+  entryReason?: string;
+  exitReason?: string;
+  tradeReflection?: string;
+  strategyTags?: string[];
   memo?: string;
   mistakeTags: string[];
-  /** Backend mistake_tag ids for PATCH */
   mistakeTagIds?: string[];
-  chartImage?: string;
+  chartImage?: string | null;
   date: string;
   profitLoss: number;
 }

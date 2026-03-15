@@ -41,11 +41,23 @@ export function useTrade(tradeId: string | undefined): {
   const updateTrade = useCallback(
     async (updates: Partial<Trade>) => {
       if (!tradeId || !trade) return;
+      const exitPrice =
+        updates.exitPrice !== undefined
+          ? updates.exitPrice === 0 && trade.tradeStatus === 'OPEN'
+            ? null
+            : updates.exitPrice
+          : undefined;
       const res = await tradesApi.update(tradeId, {
         trade_date: updates.date,
+        trade_direction: updates.tradeDirection,
+        market_type: updates.marketType,
         entry_price: updates.entryPrice,
-        exit_price: updates.exitPrice,
+        exit_price: exitPrice,
         quantity: updates.quantity,
+        strategy_tags: updates.strategyTags,
+        entry_reason: updates.entryReason,
+        exit_reason: updates.exitReason,
+        trade_reflection: updates.tradeReflection,
         memo: updates.memo,
         mistake_tag_ids: updates.mistakeTagIds ?? trade.mistakeTagIds,
         chart_image_url: updates.chartImage,

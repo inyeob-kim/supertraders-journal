@@ -3,6 +3,9 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import and_, desc, func, select
+
+# Sentinel for "argument not provided" so we can set exit_price to None when client sends null
+_UNSET = object()
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,15 +14,27 @@ from app.models.trade import Trade
 from app.models.trade_mistake_tag import TradeMistakeTag
 
 
-def _calc_pnl(entry_price: Decimal, exit_price: Decimal, quantity: Decimal | None) -> tuple[Decimal | None, Decimal | None]:
+def _calc_pnl(
+    entry_price: Decimal,
+    exit_price: Decimal | None,
+    quantity: Decimal | None,
+    trade_direction: str = "LONG",
+) -> tuple[Decimal | None, Decimal | None]:
+    """Compute PnL; for OPEN (exit_price None) returns None, None."""
+    if exit_price is None:
+        return None, None
     pnl_amount: Decimal | None = None
     pnl_pct: Decimal | None = None
+    price_diff = exit_price - entry_price if trade_direction == "LONG" else entry_price - exit_price
+    pct_diff = (exit_price - entry_price) / entry_price if entry_price and entry_price != 0 else None
+    if trade_direction == "SHORT" and pct_diff is not None:
+        pct_diff = -pct_diff
     if quantity is not None and quantity != 0:
-        pnl_amount = (exit_price - entry_price) * quantity
+        pnl_amount = price_diff * quantity
     else:
-        pnl_amount = exit_price - entry_price
-    if entry_price and entry_price != 0:
-        pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+        pnl_amount = price_diff
+    if pct_diff is not None:
+        pnl_pct = pct_diff * 100
     return pnl_amount, pnl_pct
 
 
@@ -36,9 +51,15 @@ class TradeRepository:
         user_id: UUID,
         symbol_id: UUID,
         trade_date: date,
+        trade_direction: str,
+        market_type: str,
         entry_price: Decimal,
-        exit_price: Decimal,
+        exit_price: Decimal | None = None,
         quantity: Decimal | None = None,
+        strategy_tags: list[str] | None = None,
+        entry_reason: str | None = None,
+        exit_reason: str | None = None,
+        trade_reflection: str | None = None,
         memo: str | None = None,
         mistake_tag_ids: list[UUID] | None = None,
         chart_image_url: str | None = None,
@@ -49,7 +70,8 @@ class TradeRepository:
         symbol = await self.get_symbol(symbol_id)
         if symbol is None:
             raise ValueError("Symbol not found")
-        pnl_amount, pnl_pct = _calc_pnl(entry_price, exit_price, quantity)
+        trade_status = "OPEN" if exit_price is None else "CLOSED"
+        pnl_amount, pnl_pct = _calc_pnl(entry_price, exit_price, quantity, trade_direction)
         trade = Trade(
             user_id=user_id,
             symbol_id=symbol_id,
@@ -58,11 +80,18 @@ class TradeRepository:
             market_snapshot=symbol.market,
             exchange_snapshot=symbol.exchange,
             trade_date=trade_date,
+            trade_direction=trade_direction,
+            market_type=market_type,
+            trade_status=trade_status,
             entry_price=entry_price,
             exit_price=exit_price,
             quantity=quantity,
             pnl_amount=pnl_amount,
             pnl_pct=pnl_pct,
+            entry_reason=entry_reason,
+            exit_reason=exit_reason,
+            trade_reflection=trade_reflection,
+            strategy_tags=strategy_tags,
             memo=memo,
             chart_image_url=chart_image_url,
             chart_image_path=chart_image_path,
@@ -134,35 +163,56 @@ class TradeRepository:
         trade: Trade,
         *,
         trade_date: date | None = None,
+        trade_direction: str | None = None,
+        market_type: str | None = None,
         entry_price: Decimal | None = None,
-        exit_price: Decimal | None = None,
+        exit_price: Decimal | None = _UNSET,  # type: ignore[assignment]
         quantity: Decimal | None = None,
+        entry_reason: str | None = None,
+        exit_reason: str | None = None,
+        trade_reflection: str | None = None,
+        strategy_tags: list[str] | None = None,
         memo: str | None = None,
         mistake_tag_ids: list[UUID] | None = None,
-        chart_image_url: str | None = None,
-        chart_image_path: str | None = None,
+        chart_image_url: str | None | type[_UNSET] = _UNSET,
+        chart_image_path: str | None | type[_UNSET] = _UNSET,
         entry_at: datetime | None = None,
         exit_at: datetime | None = None,
     ) -> Trade:
         if trade_date is not None:
             trade.trade_date = trade_date
+        if trade_direction is not None:
+            trade.trade_direction = trade_direction
+        if market_type is not None:
+            trade.market_type = market_type
         if entry_price is not None:
             trade.entry_price = entry_price
-        if exit_price is not None:
+        if exit_price is not _UNSET:
             trade.exit_price = exit_price
         if quantity is not None:
             trade.quantity = quantity
+        if entry_reason is not None:
+            trade.entry_reason = entry_reason
+        if exit_reason is not None:
+            trade.exit_reason = exit_reason
+        if trade_reflection is not None:
+            trade.trade_reflection = trade_reflection
+        if strategy_tags is not None:
+            trade.strategy_tags = strategy_tags
         if memo is not None:
             trade.memo = memo
-        if chart_image_url is not None:
+        if chart_image_url is not _UNSET:
             trade.chart_image_url = chart_image_url
-        if chart_image_path is not None:
+        if chart_image_path is not _UNSET:
             trade.chart_image_path = chart_image_path
         if entry_at is not None:
             trade.entry_at = entry_at
         if exit_at is not None:
             trade.exit_at = exit_at
-        pnl_amount, pnl_pct = _calc_pnl(trade.entry_price, trade.exit_price, trade.quantity)
+        trade.trade_status = "OPEN" if trade.exit_price is None else "CLOSED"
+        pnl_amount, pnl_pct = _calc_pnl(
+            trade.entry_price, trade.exit_price, trade.quantity, trade.trade_direction
+        )
         trade.pnl_amount = pnl_amount
         trade.pnl_pct = pnl_pct
         if mistake_tag_ids is not None:
