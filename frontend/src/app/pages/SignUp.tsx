@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { signUpWithEmail, signInWithGoogle } from '../lib/firebase';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -10,23 +11,40 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Basic validation
     if (password !== confirmPassword) {
-      alert('비밀번호가 일치하지 않습니다.');
+      setError('비밀번호가 일치하지 않습니다.');
       return;
     }
-    
-    // Mock signup - in real app, create account here
-    navigate('/');
+    setError(null);
+    setLoading(true);
+    try {
+      await signUpWithEmail(email, password);
+      navigate('/');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '회원가입에 실패했습니다.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleSignUp = () => {
-    // Mock Google signup
-    navigate('/');
+  const handleGoogleSignUp = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      navigate('/');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : 'Google 로그인에 실패했습니다.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,7 +52,7 @@ export default function SignUp() {
       {/* Desktop Side Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500 to-blue-600 p-12 items-center justify-center">
         <div className="max-w-md text-white">
-          <h1 className="text-4xl font-bold mb-6 tracking-tight">매매일지</h1>
+          <h1 className="text-4xl font-bold mb-6 tracking-tight">슈퍼트레이더 매매일지</h1>
           <p className="text-xl text-blue-50 leading-relaxed">
             빠르게 기록하고, 실수를 복기하고, 더 나은 트레이딩 습관을 만드세요.
           </p>
@@ -66,7 +84,7 @@ export default function SignUp() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">매매일지</h1>
+            <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">슈퍼트레이더 매매일지</h1>
           </div>
 
           {/* Auth Card */}
@@ -76,6 +94,11 @@ export default function SignUp() {
               <p className="text-neutral-500 text-base">나만의 매매일지를 시작하세요</p>
             </div>
 
+            {error && (
+              <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
             <form onSubmit={handleSignUp} className="space-y-5">
               {/* Name */}
               <div>
@@ -168,9 +191,10 @@ export default function SignUp() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 active:scale-[0.98] mt-6"
+                disabled={loading}
+                className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 active:scale-[0.98] mt-6 disabled:opacity-60 disabled:pointer-events-none"
               >
-                회원가입
+                {loading ? '가입 중...' : '회원가입'}
               </button>
             </form>
 
@@ -186,8 +210,10 @@ export default function SignUp() {
 
             {/* Google Sign Up */}
             <button
+              type="button"
               onClick={handleGoogleSignUp}
-              className="w-full px-6 py-4 bg-white text-neutral-700 border-2 border-neutral-300 rounded-xl hover:bg-neutral-50 hover:border-neutral-400 transition-all font-semibold flex items-center justify-center gap-3 active:scale-[0.98]"
+              disabled={loading}
+              className="w-full px-6 py-4 bg-white text-neutral-700 border-2 border-neutral-300 rounded-xl hover:bg-neutral-50 hover:border-neutral-400 transition-all font-semibold flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path

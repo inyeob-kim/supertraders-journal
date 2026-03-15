@@ -1,22 +1,43 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { signInWithEmail, signInWithGoogle, isFirebaseConfigured } from '../lib/firebase';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in real app, authenticate here
-    navigate('/');
+    setError(null);
+    setLoading(true);
+    try {
+      await signInWithEmail(email, password);
+      navigate('/');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '로그인에 실패했습니다.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleLogin = () => {
-    // Mock Google login
-    navigate('/');
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      navigate('/');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : 'Google 로그인에 실패했습니다.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,7 +45,7 @@ export default function Login() {
       {/* Desktop Side Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500 to-blue-600 p-12 items-center justify-center">
         <div className="max-w-md text-white">
-          <h1 className="text-4xl font-bold mb-6 tracking-tight">매매일지</h1>
+          <h1 className="text-4xl font-bold mb-6 tracking-tight">슈퍼트레이더 매매일지</h1>
           <p className="text-xl text-blue-50 leading-relaxed">
             빠르게 기록하고, 실수를 복기하고, 더 나은 트레이딩 습관을 만드세요.
           </p>
@@ -56,7 +77,7 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">매매일지</h1>
+            <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">슈퍼트레이더 매매일지</h1>
           </div>
 
           {/* Auth Card */}
@@ -66,6 +87,16 @@ export default function Login() {
               <p className="text-neutral-500 text-base">계정에 로그인하고 매매일지를 계속 기록하세요</p>
             </div>
 
+            {!isFirebaseConfigured() && (
+              <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                Firebase가 설정되지 않았습니다. 로그인하려면 <code className="bg-amber-100 px-1 rounded">.env</code>에 VITE_FIREBASE_* 값을 넣고 <code className="bg-amber-100 px-1 rounded">.env.example</code>을 참고하세요.
+              </div>
+            )}
+            {error && (
+              <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
             <form onSubmit={handleLogin} className="space-y-5">
               {/* Email */}
               <div>
@@ -123,9 +154,10 @@ export default function Login() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 active:scale-[0.98]"
+                disabled={loading}
+                className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
               >
-                로그인
+                {loading ? '로그인 중...' : '로그인'}
               </button>
             </form>
 
@@ -141,8 +173,10 @@ export default function Login() {
 
             {/* Google Login */}
             <button
+              type="button"
               onClick={handleGoogleLogin}
-              className="w-full px-6 py-4 bg-white text-neutral-700 border-2 border-neutral-300 rounded-xl hover:bg-neutral-50 hover:border-neutral-400 transition-all font-semibold flex items-center justify-center gap-3 active:scale-[0.98]"
+              disabled={loading}
+              className="w-full px-6 py-4 bg-white text-neutral-700 border-2 border-neutral-300 rounded-xl hover:bg-neutral-50 hover:border-neutral-400 transition-all font-semibold flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path

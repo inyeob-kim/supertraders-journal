@@ -4,14 +4,14 @@
 
 ### 1. 레이어 분리 (Layered Architecture)
 
-#### Backend
+#### Backend (FastAPI)
 ```
-Presentation Layer (API) → Business Logic Layer (Services) → Data Access Layer (Models/Repositories)
+API (api/v1) → Services → Repositories → Models (ORM)
 ```
 
-#### Frontend
+#### Frontend (React + TypeScript)
 ```
-Presentation Layer (Screens/Widgets) → Domain Layer (Controllers/Providers) → Data Layer (Repositories/Models)
+Pages/Components (UI) → Hooks/Utils (비즈니스 조율) → API Client / Storage (데이터)
 ```
 
 **원칙:**
@@ -26,82 +26,80 @@ Presentation Layer (Screens/Widgets) → Domain Layer (Controllers/Providers) �
 ✅ 좋은 예:
 ```python
 # Backend
-class PriceService:
-    def calculate_average(self, offer_id: UUID) -> float:
-        # 가격 평균 계산만 담당
+class TradeService:
+    def get_trades_by_user(self, user_id: UUID, skip: int, limit: int) -> list[Trade]:
+        # 거래 목록 조회만 담당
         pass
 
-class AlertService:
-    def check_price_drop(self, tracking: Tracking) -> Optional[Alert]:
-        # 알림 체크만 담당
+class DashboardService:
+    def get_summary(self, user_id: UUID) -> DashboardSummary:
+        # 대시보드 요약만 담당
         pass
 ```
 
-```dart
+```tsx
 // Frontend
-class HomeController extends StateNotifier<HomeState> {
-  // 홈 화면 상태 관리만 담당
-  Future<void> loadRecommendations() async { ... }
+function useTrades(userId: string) {
+  // 거래 목록 로딩/상태만 담당
+  const [trades, setTrades] = useState<Trade[]>([]);
+  useEffect(() => { /* fetch */ }, [userId]);
+  return { trades, isLoading, error };
 }
 
-class PriceFormatter {
-  // 가격 포맷팅만 담당
-  static String format(int price) { ... }
+function formatProfitLoss(value: number): string {
+  // P/L 포맷팅만 담당
+  return value >= 0 ? `+${value}` : `${value}`;
 }
 ```
 
 ❌ 나쁜 예:
 ```python
 # 여러 책임을 가진 클래스
-class ProductService:
-    def get_product(self): ...
-    def calculate_price(self): ...
-    def send_notification(self): ...
-    def save_to_cache(self): ...
+class TradeService:
+    def get_trades(self): ...
+    def calculate_win_rate(self): ...
+    def send_reminder_email(self): ...
+    def export_to_csv(self): ...
 ```
 
 ### 3. 화면/라우터에는 도메인 로직 금지
 
-**화면(Screen)과 라우터는 오직 UI 렌더링과 네비게이션만 담당**
+**페이지(Page)와 라우터는 오직 UI 렌더링과 네비게이션만 담당**
 
 ✅ 좋은 예:
-```dart
-// 화면은 UI만 담당
-class HomeScreen extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(homeControllerProvider);
-    return ListView(
-      children: state.items.map((item) => ProductCard(item: item)).toList(),
-    );
-  }
+```tsx
+// 페이지는 UI만 담당
+function DashboardPage() {
+  const { trades, isLoading, error } = useTrades();
+  const summary = useDashboardSummary();
+
+  if (isLoading) return <Skeleton />;
+  if (error) return <Alert variant="destructive">{error}</Alert>;
+  return (
+    <Layout>
+      <DashboardSummaryCard data={summary} />
+      <TradeList trades={trades} />
+    </Layout>
+  );
 }
 
-// 비즈니스 로직은 컨트롤러에
-class HomeController extends StateNotifier<HomeState> {
-  Future<void> loadRecommendations() async {
-    // 실제 로직은 여기
-  }
+// 비즈니스/데이터 로직은 훅이나 서비스에
+function useTrades() {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  useEffect(() => { /* API 호출 */ }, []);
+  return { trades, isLoading, error };
 }
 ```
 
 ❌ 나쁜 예:
-```dart
-// 화면에 비즈니스 로직이 있음
-class HomeScreen extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context) {
-    // ❌ 화면에서 직접 API 호출
-    final response = await apiClient.get('/products/recommendations');
-    
-    // ❌ 화면에서 데이터 변환
-    final items = response.data.map((json) {
-      return ProductDto.fromJson(json);
-    }).toList();
-    
-    // ❌ 화면에서 가격 계산
-    final avgPrice = items.fold(0, (sum, item) => sum + item.price) / items.length;
-  }
+```tsx
+// 페이지에서 직접 API 호출·계산
+function DashboardPage() {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  useEffect(() => {
+    fetch('/api/v1/trades').then(r => r.json()).then(setTrades); // ❌ 페이지에서 직접 fetch
+  }, []);
+  const winRate = trades.filter(t => t.profitLoss > 0).length / trades.length; // ❌ 화면에서 집계
 }
 ```
 
@@ -111,17 +109,20 @@ class HomeScreen extends ConsumerWidget {
 
 ✅ 좋은 예:
 ```python
-# Service는 Repository 인터페이스에 의존
-class AlertService:
-    def __init__(self, tracking_repo: TrackingRepository):
-        self.tracking_repo = tracking_repo
+# Service는 Repository에 의존 (구현체 주입)
+class TradeService:
+    def __init__(self, trade_repo: TradeRepository):
+        self.trade_repo = trade_repo
 ```
 
-```dart
-// Controller는 Repository에 의존 (구현체가 아닌 추상화)
-class HomeController extends StateNotifier<HomeState> {
-  final ProductRepository _repository;
-  HomeController(this._repository);
+```tsx
+// 훅/페이지는 API 함수에 의존 (추상화된 함수)
+function useTrades(api: { getTrades: () => Promise<Trade[]> }) {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  useEffect(() => {
+    api.getTrades().then(setTrades);
+  }, []);
+  return trades;
 }
 ```
 
@@ -130,51 +131,57 @@ class HomeController extends StateNotifier<HomeState> {
 **부수 효과(side effect)를 최소화하고, 입력에 대해 예측 가능한 출력을 반환**
 
 ✅ 좋은 예:
-```dart
+```ts
 // 순수 함수
-class PriceFormatter {
-  static String format(int price) {
-    return price.toString().replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
-    );
-  }
+function formatProfitLoss(value: number): string {
+  return value >= 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
+}
+
+function calculateWinRate(trades: Trade[]): number {
+  if (trades.length === 0) return 0;
+  const wins = trades.filter(t => t.profitLoss > 0).length;
+  return (wins / trades.length) * 100;
 }
 ```
 
 ❌ 나쁜 예:
-```dart
+```ts
 // 부수 효과가 있는 함수
-String formatPrice(int price) {
-  // ❌ 전역 상태 변경
-  lastFormattedPrice = price;
-  // ❌ 로깅 (부수 효과)
-  print('Formatting price: $price');
-  return price.toString();
+function formatProfitLoss(value: number): string {
+  console.log('Formatting:', value); // ❌ 로깅 (부수 효과)
+  lastFormatted = value;              // ❌ 전역 상태 변경
+  return value >= 0 ? `+${value}` : `${value}`;
 }
 ```
 
 ### 6. 데이터 흐름은 단방향으로
 
-**Frontend 상태 관리: 단방향 데이터 흐름**
+**Frontend 상태: 단방향 데이터 흐름**
 
 ```
-User Action → Controller → Repository → API → Response → Controller → State → UI Update
+User Action → Event Handler → API/Storage → setState → Re-render
 ```
 
 ✅ 좋은 예:
-```dart
-// 단방향 데이터 흐름
-class HomeController extends StateNotifier<HomeState> {
-  Future<void> loadRecommendations() async {
-    state = state.copyWith(isLoading: true);
+```tsx
+function TradeHistoryPage() {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadTrades = useCallback(async () => {
+    setIsLoading(true);
     try {
-      final data = await _repository.getRecommendations();
-      state = state.copyWith(isLoading: false, recommendations: data);
+      const data = await tradeApi.getTrades();
+      setTrades(data);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      setError(e);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => { loadTrades(); }, [loadTrades]);
+  return <TradeList trades={trades} onRefresh={loadTrades} />;
 }
 ```
 
@@ -185,76 +192,71 @@ class HomeController extends StateNotifier<HomeState> {
 ✅ 좋은 예:
 ```python
 # Backend: Service 레이어에서 에러 처리
-class AlertService:
-    async def create_alert(self, data: AlertCreate) -> Alert:
-        try:
-            tracking = await self.tracking_repo.get(data.tracking_id)
-            if not tracking:
-                raise ValueError("Tracking not found")
-            return await self.alert_repo.create(data)
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+class TradeService:
+    async def get_trade(self, trade_id: UUID, user_id: UUID) -> Trade:
+        trade = await self.trade_repo.get_by_id(trade_id)
+        if not trade or trade.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        return trade
 ```
 
-```dart
-// Frontend: Repository에서 에러를 Failure로 변환
-class ProductRepository {
-  Future<RecommendationResponseDto> getRecommendations(String petId) async {
-    try {
-      final response = await _apiClient.get(...);
-      return RecommendationResponseDto.fromJson(response.data);
-    } on DioException catch (e) {
-      throw NetworkException('네트워크 오류가 발생했습니다.');
-    }
-  }
+```tsx
+// Frontend: API 레이어에서 에러를 메시지로 변환
+async function fetchTrades(): Promise<Trade[]> {
+  const res = await fetch('/api/v1/trades');
+  if (!res.ok) throw new Error('거래 목록을 불러올 수 없습니다.');
+  return res.json();
 }
 ```
 
 ### 8. 네이밍 컨벤션
 
 #### Backend (Python)
-- **클래스**: PascalCase (`ProductService`, `AlertController`)
-- **함수/변수**: snake_case (`get_product`, `user_id`)
-- **상수**: UPPER_SNAKE_CASE (`MAX_RETRY_COUNT`)
+- **클래스**: PascalCase (`TradeService`, `TradeRepository`)
+- **함수/변수**: snake_case (`get_trades`, `user_id`)
+- **상수**: UPPER_SNAKE_CASE (`MAX_PAGE_SIZE`)
 - **Private**: 앞에 언더스코어 (`_internal_method`)
 
-#### Frontend (Dart)
-- **클래스**: PascalCase (`HomeController`, `ProductDto`)
-- **함수/변수**: camelCase (`loadRecommendations`, `userId`)
-- **상수**: camelCase 또는 PascalCase (`PetConstants.breeds`)
-- **Private**: 앞에 언더스코어 (`_privateMethod`)
+#### Frontend (TypeScript/React)
+- **컴포넌트/타입/인터페이스**: PascalCase (`DashboardPage`, `Trade`)
+- **함수/변수**: camelCase (`loadTrades`, `userId`)
+- **상수**: UPPER_SNAKE_CASE 또는 camelCase (`API_BASE_URL`, `defaultPageSize`)
+- **Private/내부**: 앞에 언더스코어 (`_formatDate`)
 
 ### 9. 파일 구조 원칙
 
 #### Backend
 ```
 app/
-├── api/v1/          # API 엔드포인트 (라우터만)
-├── services/        # 비즈니스 로직
-├── models/          # DB 모델 (ORM)
-├── schemas/         # Pydantic 스키마 (Request/Response)
-└── core/            # 공통 설정
+├── api/v1/           # API 엔드포인트 (라우터만): auth, users, trades, symbols, dashboard
+├── services/         # 비즈니스 로직
+├── repositories/     # 데이터 접근 (DB 쿼리)
+├── models/           # DB 모델 (ORM)
+├── schemas/          # Pydantic 스키마 (Request/Response)
+├── core/             # 설정, 보안, JWT
+├── utils/            # 공통 유틸
+└── constants/        # 상수
 ```
 
 **원칙:**
-- `api/`에는 라우터 정의만 (비즈니스 로직 없음)
-- `services/`에 모든 비즈니스 로직
+- `api/v1/`에는 라우터 정의만 (비즈니스 로직은 Service 호출로 위임)
+- `services/`에 비즈니스 로직, `repositories/`에 CRUD·쿼리
 - `models/`는 DB 스키마만 (비즈니스 로직 없음)
 
 #### Frontend
 ```
-features/
-└── feature_name/
-    └── presentation/
-        ├── screens/      # 화면 (UI만)
-        ├── widgets/      # 위젯 (UI만)
-        └── controllers/  # 상태 관리 (비즈니스 로직 조율)
+src/app/
+├── pages/            # 페이지 컴포넌트 (UI + 라우트 대응)
+├── components/       # 재사용 UI (Layout, ui/*, figma/*)
+├── types/            # 타입·인터페이스 (trade, profile 등)
+├── utils/            # 스토리지, 포맷 등 유틸
+└── routes.ts         # 라우팅 설정
 ```
 
 **원칙:**
-- `screens/`에는 UI 렌더링만
-- `widgets/`에는 재사용 가능한 UI 컴포넌트만
-- `controllers/`에는 상태 관리와 비즈니스 로직 조율
+- `pages/`는 UI·네비게이션 위주, 데이터는 훅/API 레이어에서
+- `components/`는 재사용 가능한 UI만
+- API 호출·집계 로직은 훅이나 별도 모듈로 분리
 
 ### 10. 테스트 가능성
 
@@ -263,17 +265,18 @@ features/
 ✅ 좋은 예:
 ```python
 # 의존성 주입으로 테스트 가능
-class AlertService:
-    def __init__(self, tracking_repo: TrackingRepository, alert_repo: AlertRepository):
-        self.tracking_repo = tracking_repo
-        self.alert_repo = alert_repo
+class TradeService:
+    def __init__(self, trade_repo: TradeRepository, symbol_repo: SymbolRepository):
+        self.trade_repo = trade_repo
+        self.symbol_repo = symbol_repo
 ```
 
-```dart
+```tsx
 // Mock 가능한 구조
-class HomeController extends StateNotifier<HomeState> {
-  final ProductRepository _repository;
-  HomeController(this._repository); // 의존성 주입
+function useTrades(api: TradeApi = defaultTradeApi) {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  useEffect(() => { api.getTrades().then(setTrades); }, []);
+  return trades;
 }
 ```
 
@@ -281,9 +284,9 @@ class HomeController extends StateNotifier<HomeState> {
 
 **DRY (Don't Repeat Yourself) 원칙 준수**
 
-- 공통 로직은 유틸리티 함수로 추출
+- 공통 로직은 유틸 함수나 훅으로 추출
 - 반복되는 패턴은 공통 컴포넌트/서비스로 분리
-- 상수는 별도 파일로 관리
+- 상수는 `constants/` 또는 상수 파일로 관리
 
 ### 12. 타입 안정성
 
@@ -291,13 +294,20 @@ class HomeController extends StateNotifier<HomeState> {
 
 ✅ 좋은 예:
 ```python
-def create_pet(data: PetCreate, db: AsyncSession) -> PetRead:
+def create_trade(data: TradeCreate, db: AsyncSession, user_id: UUID) -> TradeRead:
     # 명시적 타입 힌트
     pass
 ```
 
-```dart
-Future<RecommendationResponseDto> getRecommendations(String petId) async {
+```ts
+interface Trade {
+  id: string;
+  symbol: string;
+  profitLoss: number;
+  date: string;
+}
+
+async function getTrades(): Promise<Trade[]> {
   // 명시적 반환 타입
 }
 ```
@@ -307,19 +317,21 @@ Future<RecommendationResponseDto> getRecommendations(String petId) async {
 **복잡한 로직에는 주석 추가, Public API는 문서화**
 
 ```python
-def calculate_14day_average(
+def get_win_rate(
     db: AsyncSession,
-    offer_id: UUID
-) -> Optional[float]:
+    user_id: UUID,
+    since: datetime | None = None,
+) -> float:
     """
-    최근 14일 이동 평균 계산
-    
+    기간 내 사용자 승률 계산
+
     Args:
         db: 데이터베이스 세션
-        offer_id: 상품 제안 ID
-        
+        user_id: 사용자 ID
+        since: 집계 시작일 (None이면 전체)
+
     Returns:
-        14일 평균 가격, 데이터가 없으면 None
+        0.0 ~ 100.0 승률
     """
     pass
 ```
@@ -338,31 +350,31 @@ chore: 빌드 설정 등
 
 ## 🚫 금지 사항
 
-1. ❌ 화면에서 직접 API 호출 (`Dio`, `ApiClient` 직접 사용)
-2. ❌ 라우터에서 비즈니스 로직 처리
-3. ❌ 컨트롤러에서 직접 DB 접근
-4. ❌ 전역 변수 사용 (상태는 Provider/StateNotifier로 관리)
-5. ❌ 하드코딩된 값 (상수 파일로 분리)
+1. ❌ 페이지에서 직접 `fetch`/axios 호출 (API 레이어 또는 훅으로 분리)
+2. ❌ 라우터/라우트 정의에서 비즈니스 로직 처리
+3. ❌ Service에서 직접 DB 세션 생성 (Repository 통해 접근)
+4. ❌ 전역 변수로 상태 공유 (React state/context 또는 훅으로 관리)
+5. ❌ 하드코딩된 값 (상수·설정 파일로 분리)
 6. ❌ 순환 참조 (import cycle)
-7. ❌ 너무 깊은 중첩 (3단계 이상 지양)
+7. ❌ 과도한 중첩 (3단계 이상 지양)
 8. ❌ 매직 넘버/문자열 (상수로 정의)
 
 ## ✅ 체크리스트
 
 코드 작성 시 확인:
 
-- [ ] 화면에 비즈니스 로직이 없나?
-- [ ] 각 함수가 단일 책임을 가지나?
-- [ ] 의존성이 적절한 방향으로 흐르나?
-- [ ] 에러 처리가 적절한 레이어에서 이루어지나?
-- [ ] 타입이 명시적으로 정의되어 있나?
+- [ ] 페이지에 비즈니스/API 로직이 직접 들어가 있지 않은가?
+- [ ] 각 함수·훅이 단일 책임을 가지는가?
+- [ ] 의존성이 상위 → 하위 방향으로만 흐르는가?
+- [ ] 에러가 적절한 레이어에서 처리되는가?
+- [ ] 타입이 명시적으로 정의되어 있는가?
 - [ ] 테스트 가능한 구조인가?
 - [ ] 코드 중복이 없나?
-- [ ] 네이밍이 명확한가?
+- [ ] 네이밍이 도메인(거래, 심볼, 대시보드)에 맞게 명확한가?
 
 ## 📚 참고 자료
 
 - Clean Architecture (Robert C. Martin)
 - SOLID 원칙
-- Flutter Best Practices
 - FastAPI Best Practices
+- React / TypeScript Best Practices

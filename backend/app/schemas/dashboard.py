@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.schemas.trade import TradeListItemResponse
+
 
 class DashboardQueryRequest(BaseModel):
     start_date: date | None = None
@@ -12,7 +14,33 @@ class DashboardQueryRequest(BaseModel):
     market: str | None = None
 
 
+class DashboardSummaryBlockResponse(BaseModel):
+    total_trades: int
+    win_rate: float
+    total_pnl_amount: float
+    total_pnl_amount_krw: float = 0.0
+    total_pnl_amount_usd: float = 0.0
+    trade_count_krw: int = 0
+    trade_count_usd: int = 0
+
+
+class DashboardMistakeStatResponse(BaseModel):
+    mistake_tag_id: UUID
+    code: str
+    label_ko: str
+    count: int
+    percentage: float
+
+
 class DashboardSummaryResponse(BaseModel):
+    range: str
+    summary: DashboardSummaryBlockResponse
+    recent_trades: list[TradeListItemResponse]
+    mistake_stats: list[DashboardMistakeStatResponse]
+    rule_of_the_day: str | None
+
+
+class DashboardSummaryResponseLegacy(BaseModel):
     total_trades: int
     winning_trades: int
     losing_trades: int
@@ -49,7 +77,7 @@ class MistakeTagStatResponse(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    summary: DashboardSummaryResponse
+    summary: DashboardSummaryResponseLegacy
     pnl_time_series: list[PnlTimeSeriesPointResponse]
     symbol_performance: list[SymbolPerformanceResponse]
     market_distribution: list[MarketDistributionResponse]

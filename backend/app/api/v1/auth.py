@@ -1,11 +1,11 @@
-from fastapi import APIRouter, status
+"""
+Auth API. Sign-up and sign-in are handled by the frontend with Firebase Auth.
+The backend only verifies Firebase ID tokens via the Authorization Bearer header.
+Protected routes use the get_current_user dependency (see api/deps.py).
+"""
 
-from app.schemas.auth import LoginRequest, TokenResponse
+from fastapi import APIRouter
 
 router = APIRouter()
 
-
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-async def login(payload: LoginRequest) -> TokenResponse:
-    return TokenResponse(access_token="placeholder", token_type="bearer")
-
+# No login/signup endpoints; frontend uses Firebase Auth and sends ID token in headers.

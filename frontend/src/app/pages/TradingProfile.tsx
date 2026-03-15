@@ -1,20 +1,31 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import { getProfile, saveProfile } from '../utils/profileStorage';
-import { TradingProfile } from '../types/profile';
+import { useProfile } from '../hooks/useProfile';
+import { mistakeTagsApi } from '../api/endpoints';
+import type { TradingProfile } from '../types/profile';
+import type { MistakeTagItem } from '../api/types';
 import { Lightbulb, Target, AlertTriangle, BookOpen, Star, X, Plus, Edit2, Check } from 'lucide-react';
 
 export default function TradingProfilePage() {
+  const { profile: fetchedProfile, isLoading, error, updateProfile, refetch } = useProfile();
   const [profile, setProfile] = useState<TradingProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [newMistake, setNewMistake] = useState('');
   const [newReminder, setNewReminder] = useState('');
+  const [mistakeTagList, setMistakeTagList] = useState<MistakeTagItem[]>([]);
 
   useEffect(() => {
-    setProfile(getProfile());
+    if (fetchedProfile) setProfile(fetchedProfile);
+  }, [fetchedProfile]);
+
+  useEffect(() => {
+    mistakeTagsApi
+      .list()
+      .then((list) => setMistakeTagList(list))
+      .catch(() => setMistakeTagList([]));
   }, []);
 
-  if (!profile) {
+  if (isLoading && !profile) {
     return (
       <Layout>
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
@@ -24,8 +35,29 @@ export default function TradingProfilePage() {
     );
   }
 
-  const handleSave = () => {
-    saveProfile(profile);
+  if (error && !profile) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <p className="text-red-600">{error}</p>
+          <button onClick={() => refetch()} className="mt-4 underline">다시 시도</button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <p className="text-neutral-600">프로필을 불러올 수 없습니다</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  const handleSave = async () => {
+    await updateProfile(profile);
     setIsEditing(false);
   };
 
@@ -36,6 +68,15 @@ export default function TradingProfilePage() {
         commonMistakes: [...profile.commonMistakes, newMistake.trim()],
       });
       setNewMistake('');
+    }
+  };
+
+  const addMistakeFromPill = (label: string) => {
+    if (label && !profile.commonMistakes.includes(label)) {
+      setProfile({
+        ...profile,
+        commonMistakes: [...profile.commonMistakes, label],
+      });
     }
   };
 
@@ -84,7 +125,7 @@ export default function TradingProfilePage() {
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  setProfile(getProfile());
+                  refetch();
                   setIsEditing(false);
                 }}
                 className="px-4 py-2 text-neutral-700 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
@@ -241,22 +282,47 @@ export default function TradingProfilePage() {
               </div>
             </div>
             <div className="p-6">
+              {isEditing && mistakeTagList.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-neutral-600 mb-2">대표적인 실수 (클릭하여 추가)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {mistakeTagList.map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => addMistakeFromPill(tag.label_ko)}
+                        disabled={profile.commonMistakes.includes(tag.label_ko)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                          profile.commonMistakes.includes(tag.label_ko)
+                            ? 'bg-red-100 text-red-800 border border-red-200 cursor-default'
+                            : 'bg-neutral-100 text-neutral-700 border border-neutral-200 hover:bg-neutral-200 hover:border-neutral-300 cursor-pointer'
+                        }`}
+                      >
+                        {tag.label_ko}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2 mb-4">
                 {profile.commonMistakes.map((mistake) => (
-                  <div
+                  <span
                     key={mistake}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-50 text-red-700 border border-red-200 text-sm font-medium"
                   >
-                    <span>{mistake}</span>
+                    {mistake}
                     {isEditing && (
                       <button
+                        type="button"
                         onClick={() => removeMistake(mistake)}
-                        className="hover:bg-red-100 rounded p-0.5 transition-colors"
+                        className="hover:bg-red-100 rounded-full p-0.5 transition-colors"
+                        aria-label="삭제"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
-                  </div>
+                  </span>
                 ))}
               </div>
 
@@ -266,11 +332,17 @@ export default function TradingProfilePage() {
                     type="text"
                     value={newMistake}
                     onChange={(e) => setNewMistake(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addMistake()}
-                    placeholder="새로운 실수 태그 추가..."
+                    onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addMistake();
+                    }
+                  }}
+                    placeholder="직접 입력하여 추가..."
                     className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <button
+                    type="button"
                     onClick={addMistake}
                     className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors"
                   >

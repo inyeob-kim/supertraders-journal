@@ -21,6 +21,28 @@ class SymbolUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
+class SymbolSearchItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    symbol: str
+    name_kr: str | None
+    name_en: str | None
+    market: str
+    exchange: str | None
+
+
+class FavoriteSymbolResponse(BaseModel):
+    id: UUID
+    symbol_id: UUID
+    symbol: str
+    name_kr: str | None
+    name_en: str | None
+    market: str
+    exchange: str | None
+    created_at: datetime
+
+
 class SymbolResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,6 +57,6 @@ class SymbolResponse(BaseModel):
     updated_at: datetime
 
 
-# Backward-compatible alias for currently imported name.
+# Backward-compatible alias.
 SymbolRead = SymbolResponse
 

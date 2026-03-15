@@ -1,7 +1,10 @@
+import { createRoot } from "react-dom/client";
+import App from "./app/App.tsx";
+import "./styles/index.css";
+import { isFirebaseConfigured, getFirebaseApp } from "./app/lib/firebase";
 
-  import { createRoot } from "react-dom/client";
-  import App from "./app/App.tsx";
-  import "./styles/index.css";
-
-  createRoot(document.getElementById("root")!).render(<App />);
+if (isFirebaseConfigured()) {
+  getFirebaseApp();
+}
+createRoot(document.getElementById("root")!).render(<App />);
   

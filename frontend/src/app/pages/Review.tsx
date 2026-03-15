@@ -1,56 +1,61 @@
-import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import { getTrades } from '../utils/storage';
-import { Trade } from '../types/trade';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useTrades } from '../hooks/useTrades';
+import { formatCurrency, getMarketPnlSummaries, isKoreanMarket } from '../utils/format';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, Target, AlertCircle } from 'lucide-react';
 
 export default function Review() {
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const { items: trades, isLoading, error } = useTrades({ page: 1, size: 200, sort: 'oldest' });
 
-  useEffect(() => {
-    setTrades(getTrades());
-  }, []);
-
-  // Calculate stats
   const totalTrades = trades.length;
-  const winningTrades = trades.filter(t => t.profitLoss > 0).length;
-  const losingTrades = trades.filter(t => t.profitLoss < 0).length;
+  const winningTrades = trades.filter((t) => t.profitLoss > 0).length;
+  const losingTrades = trades.filter((t) => t.profitLoss < 0).length;
   const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-  const totalPL = trades.reduce((sum, t) => sum + t.profitLoss, 0);
-  const avgWin = winningTrades > 0 
-    ? trades.filter(t => t.profitLoss > 0).reduce((sum, t) => sum + t.profitLoss, 0) / winningTrades
-    : 0;
-  const avgLoss = losingTrades > 0
-    ? trades.filter(t => t.profitLoss < 0).reduce((sum, t) => sum + t.profitLoss, 0) / losingTrades
-    : 0;
+  const { krw: krwSummary, usd: usdSummary } = getMarketPnlSummaries(trades);
 
-  // Count mistake tags
   const mistakeCount: Record<string, number> = {};
-  trades.forEach(trade => {
-    trade.mistakeTags.forEach(tag => {
+  trades.forEach((trade) => {
+    trade.mistakeTags.forEach((tag) => {
       mistakeCount[tag] = (mistakeCount[tag] || 0) + 1;
     });
   });
-  
   const topMistakes = Object.entries(mistakeCount)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  // Prepare chart data - cumulative P/L over time
-  const sortedTrades = [...trades].sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-
-  let cumulativePL = 0;
+  const sortedTrades = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  let cumKrw = 0;
+  let cumUsd = 0;
   const chartData = sortedTrades.map((trade, index) => {
-    cumulativePL += trade.profitLoss;
+    if (isKoreanMarket(trade.market)) cumKrw += trade.profitLoss;
+    else cumUsd += trade.profitLoss;
     return {
       date: new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      pl: parseFloat(cumulativePL.toFixed(2)),
+      plKrw: parseFloat(cumKrw.toFixed(0)),
+      plUsd: parseFloat(cumUsd.toFixed(2)),
       trade: index + 1,
     };
   });
+
+  if (isLoading && trades.length === 0) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <p className="text-neutral-600">로딩 중...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error && trades.length === 0) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <p className="text-red-600">{error}</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -90,16 +95,21 @@ export default function Review() {
           <div className="bg-white rounded-2xl p-5 md:p-6 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <span className="text-neutral-600 text-xs md:text-sm font-medium">총 수익/손실</span>
-              {totalPL >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-green-500" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-red-500" />
-              )}
             </div>
-            <div className={`text-2xl md:text-3xl font-bold tracking-tight ${
-              totalPL >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {totalPL >= 0 ? '+' : ''}${totalPL.toFixed(2)}
+            <div className="space-y-1.5">
+              {krwSummary.tradeCount > 0 && (
+                <div className={`text-lg md:text-xl font-bold tracking-tight ${krwSummary.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  한국: {krwSummary.total >= 0 ? '+' : ''}{formatCurrency(krwSummary.total, 'KR')}
+                </div>
+              )}
+              {usdSummary.tradeCount > 0 && (
+                <div className={`text-lg md:text-xl font-bold tracking-tight ${usdSummary.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  미국: {usdSummary.total >= 0 ? '+' : ''}{formatCurrency(usdSummary.total, 'US')}
+                </div>
+              )}
+              {krwSummary.tradeCount === 0 && usdSummary.tradeCount === 0 && (
+                <div className="text-neutral-500 text-lg">-</div>
+              )}
             </div>
           </div>
 
@@ -108,11 +118,24 @@ export default function Review() {
               <span className="text-neutral-600 text-xs md:text-sm font-medium">평균 수익/손실</span>
               <AlertCircle className="w-4 h-4 text-neutral-400" />
             </div>
-            <div className="text-lg md:text-xl font-bold text-green-600 tracking-tight">
-              +${avgWin.toFixed(2)}
-            </div>
-            <div className="text-lg md:text-xl font-bold text-red-600 tracking-tight">
-              ${avgLoss.toFixed(2)}
+            <div className="space-y-2">
+              {krwSummary.tradeCount > 0 && (
+                <div>
+                  <div className="text-sm text-neutral-500">한국</div>
+                  <div className="text-base font-bold text-green-600">+{formatCurrency(krwSummary.avgWin, 'KR')}</div>
+                  <div className="text-base font-bold text-red-600">{formatCurrency(krwSummary.avgLoss, 'KR')}</div>
+                </div>
+              )}
+              {usdSummary.tradeCount > 0 && (
+                <div>
+                  <div className="text-sm text-neutral-500">미국</div>
+                  <div className="text-base font-bold text-green-600">+{formatCurrency(usdSummary.avgWin, 'US')}</div>
+                  <div className="text-base font-bold text-red-600">{formatCurrency(usdSummary.avgLoss, 'US')}</div>
+                </div>
+              )}
+              {krwSummary.tradeCount === 0 && usdSummary.tradeCount === 0 && (
+                <div className="text-neutral-500 text-lg">-</div>
+              )}
             </div>
           </div>
         </div>
@@ -125,15 +148,15 @@ export default function Review() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="#9ca3af"
                     style={{ fontSize: '12px', fontWeight: 500 }}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="#9ca3af"
                     style={{ fontSize: '12px', fontWeight: 500 }}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => value.toLocaleString()}
                   />
                   <Tooltip
                     contentStyle={{
@@ -145,16 +168,34 @@ export default function Review() {
                       padding: '12px',
                       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                     }}
-                    formatter={(value: any) => [`$${value.toFixed(2)}`, 'P/L']}
+                    formatter={(value: number, name: string) => {
+                      const isKrw = name === '한국 누적' || name === 'plKrw';
+                      return [isKrw ? formatCurrency(value, 'KR') : formatCurrency(value, 'US'), name === 'plKrw' ? '한국 누적' : name === 'plUsd' ? '미국 누적' : name];
+                    }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="pl" 
-                    stroke="#2563eb" 
-                    strokeWidth={3}
-                    dot={{ fill: '#2563eb', r: 5 }}
-                    activeDot={{ r: 7 }}
-                  />
+                  <Legend />
+                  {krwSummary.tradeCount > 0 && (
+                    <Line
+                      type="monotone"
+                      dataKey="plKrw"
+                      name="한국 누적"
+                      stroke="#059669"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  )}
+                  {usdSummary.tradeCount > 0 && (
+                    <Line
+                      type="monotone"
+                      dataKey="plUsd"
+                      name="미국 누적"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>

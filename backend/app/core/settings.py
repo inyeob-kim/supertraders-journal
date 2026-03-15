@@ -20,9 +20,9 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/supertraders_journal"
     )
 
-    JWT_SECRET_KEY: str = "change-this-in-production"
-    JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # Firebase Admin SDK (for ID token verification)
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_CREDENTIALS_PATH: str | None = None
 
 
 @lru_cache(maxsize=1)

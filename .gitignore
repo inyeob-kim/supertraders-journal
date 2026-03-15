@@ -1,0 +1,28 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Firebase Admin SDK key (never commit)
+**/firebase-adminsdk*.json
+**/serviceAccountKey*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

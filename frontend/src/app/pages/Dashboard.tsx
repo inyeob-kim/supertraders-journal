@@ -1,75 +1,66 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import Layout from '../components/Layout';
-import { getTrades } from '../utils/storage';
-import { getProfile } from '../utils/profileStorage';
-import { Trade, MistakeTag } from '../types/trade';
+import { useDashboardSummary, type DashboardRange } from '../hooks/useDashboardSummary';
+import { formatCurrency, getMarketFlag, getMarketLabel } from '../utils/format';
 import { Plus, TrendingUp, TrendingDown, AlertCircle, Star } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [todayReminder, setTodayReminder] = useState<string>('');
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
+  const [timeRange, setTimeRange] = useState<DashboardRange>('week');
+  const { data, isLoading, error, refetch } = useDashboardSummary(timeRange);
 
-  useEffect(() => {
-    setTrades(getTrades());
-    const profile = getProfile();
-    setTodayReminder(profile.todayReminder);
-  }, []);
+  if (isLoading && !data) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-10 bg-neutral-200 rounded w-48" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-28 bg-neutral-200 rounded-2xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
-  // Calculate date range based on selected filter
-  const getFilteredTrades = () => {
-    const now = new Date();
-    
-    switch (timeRange) {
-      case 'today': {
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        return trades.filter(t => new Date(t.date) >= todayStart);
-      }
-      case 'week': {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return trades.filter(t => new Date(t.date) >= weekAgo);
-      }
-      case 'month': {
-        const monthAgo = new Date();
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return trades.filter(t => new Date(t.date) >= monthAgo);
-      }
-      case 'all':
-      default:
-        return trades;
-    }
+  if (error && !data) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-700">
+            <p>{error}</p>
+            <button
+              onClick={() => refetch()}
+              className="mt-4 px-4 py-2 bg-red-100 rounded-lg hover:bg-red-200"
+            >
+              다시 시도
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const summary = data?.summary ?? {
+    total_trades: 0,
+    win_rate: 0,
+    total_pnl_amount: 0,
+    total_pnl_amount_krw: 0,
+    total_pnl_amount_usd: 0,
+    trade_count_krw: 0,
+    trade_count_usd: 0,
   };
-
-  const filteredTrades = getFilteredTrades();
-  
-  // Calculate stats based on filtered trades
-  const totalTrades = filteredTrades.length;
-  const winningTrades = filteredTrades.filter(t => t.profitLoss > 0).length;
-  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-  const totalPL = filteredTrades.reduce((sum, t) => sum + t.profitLoss, 0);
-
-  // Get recent trades (always from all trades, not filtered)
-  const recentTrades = trades.slice(0, 5);
-
-  // Count mistake tags (from all trades)
-  const mistakeCount: Record<string, number> = {};
-  trades.forEach(trade => {
-    trade.mistakeTags.forEach(tag => {
-      mistakeCount[tag] = (mistakeCount[tag] || 0) + 1;
-    });
-  });
-  
-  const topMistakes = Object.entries(mistakeCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
+  const recentTrades = data?.recentTrades ?? [];
+  const topMistakes = (data?.mistakeStats ?? []).slice(0, 3);
+  const todayReminder = data?.ruleOfTheDay ?? '';
 
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 tracking-tight">대시보드</h1>
@@ -84,10 +75,9 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Rule of the Day */}
         {todayReminder && (
           <div className="mb-8">
-            <div 
+            <div
               onClick={() => navigate('/profile')}
               className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-7 text-white shadow-xl shadow-blue-600/25 cursor-pointer hover:shadow-2xl hover:shadow-blue-600/35 transition-all"
             >
@@ -104,7 +94,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Time Range Filter */}
         <div className="mb-6">
           <div className="flex items-center gap-2">
             {(['today', 'week', 'month', 'all'] as const).map((range) => (
@@ -123,7 +112,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Weekly Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-10">
           <div className="bg-white rounded-2xl p-7 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
@@ -132,32 +120,17 @@ export default function Dashboard() {
                 <TrendingUp className="w-5 h-5 text-neutral-600" />
               </div>
             </div>
-            <div className="text-4xl font-bold text-neutral-900 tracking-tight">{trades.length}</div>
-            <p className="text-xs text-neutral-500 mt-2 font-medium">전체 기간</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-7 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-neutral-600 text-sm font-medium">
-                {timeRange === 'today' ? '오늘 거래' : timeRange === 'week' ? '주간 거래' : timeRange === 'month' ? '월간 거래' : '총 거래'}
-              </span>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-            <div className="text-4xl font-bold text-neutral-900 tracking-tight">{totalTrades}</div>
-            <p className="text-xs text-neutral-500 mt-2 font-medium">
-              {timeRange === 'today' ? '오늘' : timeRange === 'week' ? '최근 7일' : timeRange === 'month' ? '최근 30일' : '전체'}
-            </p>
+            <div className="text-4xl font-bold text-neutral-900 tracking-tight">{summary.total_trades}</div>
+            <p className="text-xs text-neutral-500 mt-2 font-medium">선택 기간</p>
           </div>
 
           <div className="bg-white rounded-2xl p-7 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <span className="text-neutral-600 text-sm font-medium">승률</span>
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                winRate >= 50 ? 'bg-green-50' : 'bg-red-50'
+                summary.win_rate >= 50 ? 'bg-green-50' : 'bg-red-50'
               }`}>
-                {winRate >= 50 ? (
+                {summary.win_rate >= 50 ? (
                   <TrendingUp className="w-5 h-5 text-green-600" />
                 ) : (
                   <TrendingDown className="w-5 h-5 text-red-600" />
@@ -165,37 +138,53 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="text-4xl font-bold text-neutral-900 tracking-tight">
-              {winRate.toFixed(0)}%
+              {summary.win_rate.toFixed(0)}%
             </div>
-            <p className="text-xs text-neutral-500 mt-2 font-medium">
-              {winningTrades}/{totalTrades} 승
-            </p>
+            <p className="text-xs text-neutral-500 mt-2 font-medium" />
           </div>
 
           <div className="bg-white rounded-2xl p-7 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <span className="text-neutral-600 text-sm font-medium">총 수익/손실</span>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                totalPL >= 0 ? 'bg-green-50' : 'bg-red-50'
-              }`}>
-                {totalPL >= 0 ? (
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                ) : (
-                  <TrendingDown className="w-5 h-5 text-red-600" />
-                )}
+              <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-neutral-500" />
               </div>
             </div>
-            <div className={`text-4xl font-bold tracking-tight ${
-              totalPL >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              ${totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)}
+            <div className="space-y-2">
+              {summary.trade_count_krw > 0 && (
+                <div className={`text-xl md:text-2xl font-bold tracking-tight ${
+                  summary.total_pnl_amount_krw >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  한국: {summary.total_pnl_amount_krw >= 0 ? '+' : ''}{formatCurrency(summary.total_pnl_amount_krw, 'KR')}
+                </div>
+              )}
+              {summary.trade_count_usd > 0 && (
+                <div className={`text-xl md:text-2xl font-bold tracking-tight ${
+                  summary.total_pnl_amount_usd >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  미국: {summary.total_pnl_amount_usd >= 0 ? '+' : ''}{formatCurrency(summary.total_pnl_amount_usd, 'US')}
+                </div>
+              )}
+              {summary.trade_count_krw === 0 && summary.trade_count_usd === 0 && (
+                <div className="text-neutral-500 text-lg">매매 내역 없음</div>
+              )}
             </div>
-            <p className="text-xs text-neutral-500 mt-2 font-medium">이번 주</p>
+            <p className="text-xs text-neutral-500 mt-2 font-medium">선택 기간</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-7 border border-neutral-200/80 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-neutral-600 text-sm font-medium">최근 매매</span>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="text-4xl font-bold text-neutral-900 tracking-tight">{recentTrades.length}</div>
+            <p className="text-xs text-neutral-500 mt-2 font-medium">최대 5건</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent Trades */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden">
             <div className="px-7 py-6 border-b border-neutral-100">
               <h2 className="font-semibold text-neutral-900 text-lg">최근 매매</h2>
@@ -215,11 +204,14 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
+                          <span className="text-xl leading-none" title={getMarketLabel(trade.market)} aria-label={getMarketLabel(trade.market)}>
+                            {getMarketFlag(trade.market)}
+                          </span>
                           <span className="font-bold text-neutral-900 text-lg">{trade.ticker}</span>
                           <span className="text-sm text-neutral-500 font-medium">
-                            {new Date(trade.date).toLocaleDateString('ko-KR', { 
-                              month: 'short', 
-                              day: 'numeric' 
+                            {new Date(trade.date).toLocaleDateString('ko-KR', {
+                              month: 'short',
+                              day: 'numeric',
                             })}
                           </span>
                         </div>
@@ -242,7 +234,7 @@ export default function Dashboard() {
                       <div className={`text-right ml-6 font-bold text-xl ${
                         trade.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {trade.profitLoss >= 0 ? '+' : ''}${trade.profitLoss.toFixed(2)}
+                        {trade.profitLoss >= 0 ? '+' : ''}{formatCurrency(trade.profitLoss, trade.market)}
                       </div>
                     </div>
                   </div>
@@ -251,7 +243,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Common Mistakes */}
           <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden">
             <div className="px-7 py-6 border-b border-neutral-100">
               <h2 className="font-semibold text-neutral-900 text-lg">주요 실수</h2>
@@ -264,16 +255,16 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {topMistakes.map(([tag, count]) => (
-                    <div key={tag}>
+                  {topMistakes.map(({ label_ko, count, percentage }) => (
+                    <div key={label_ko}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-neutral-700 font-medium">{tag}</span>
+                        <span className="text-sm text-neutral-700 font-medium">{label_ko}</span>
                         <span className="text-sm font-bold text-neutral-900">{count}</span>
                       </div>
                       <div className="w-full bg-neutral-100 rounded-full h-2.5">
                         <div
                           className="bg-red-500 h-2.5 rounded-full transition-all"
-                          style={{ width: `${(count / trades.length) * 100}%` }}
+                          style={{ width: `${percentage}%` }}
                         />
                       </div>
                     </div>
